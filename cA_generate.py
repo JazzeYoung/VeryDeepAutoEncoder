@@ -233,8 +233,8 @@ class cA(object):
 ############################################################
         #Jazze Young Generative Model#
         
-    def get_generative_samples(self, epsilon):
-        sample = T.matrix('self.x')
+    def get_generative_samples(self, x, epsilon):
+        sample = T.matrix('x')
         #samples = []
         #samples = Image.fromarray(tile_raster_images(
         #X=ca.W.get_value(borrow=True).T,
@@ -251,7 +251,7 @@ class cA(object):
         return sample
 ############################################################
 
-def test_cA(learning_rate=0.01, training_epochs=20,
+def test_cA(learning_rate=0.01, training_epochs=1, #20,
             dataset='mnist.pkl.gz',
             batch_size=10, output_folder='cA_plots', contraction_level=.1):
     """
@@ -330,13 +330,12 @@ def test_cA(learning_rate=0.01, training_epochs=20,
         img_shape=(28, 28), tile_shape=(10, 10),
         tile_spacing=(1, 1)))
 ###################################
-    
+    n_samples = 100
     samples = []
     generation_time = time.clock()
-    
-    for i in range(train_set_x.shape(2)):
+    for i in range(n_samples):
         x = train_set_x[i][:]
-        sample = cA.get_generative_samples(0.001)
+        sample = ca.get_generative_samples(x, 0.001)
         samples.append(sample)
     e_gene_time = time.clock()
     print 'Generating samples time cost ', e_gene_time - generation_time
