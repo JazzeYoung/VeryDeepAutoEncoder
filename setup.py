@@ -1,87 +1,182 @@
-from __future__ import print_function
+#   * Figure out how to compile and install documentation automatically
+#   * Add download_url
 
-import warnings
-from setuptools import setup, find_packages, Extension
-from setuptools.command.install import install
-import numpy
-
-from theano.compat.six.moves import input
-
-# Because many people neglected to run the pylearn2/utils/setup.py script
-# separately, we compile the necessary Cython extensions here but because
-# Cython is not a strict dependency, we issue a warning when it is not
-# available.
+from __future__ import absolute_import, print_function, division
+import os
+import subprocess
+import codecs
+from fnmatch import fnmatchcase
+from distutils.util import convert_path
 try:
-    from Cython.Distutils import build_ext
-    cython_available = True
+    from setuptools import setup
 except ImportError:
-    warnings.warn("Cython was not found and hence pylearn2.utils._window_flip "
-                  "and pylearn2.utils._video and classes that depend on them "
-                  "(e.g. pylearn2.train_extensions.window_flip) will not be "
-                  "available")
-    cython_available = False
-
-if cython_available:
-    cmdclass = {'build_ext': build_ext}
-    ext_modules = [Extension("pylearn2.utils._window_flip",
-                             ["pylearn2/utils/_window_flip.pyx"],
-                             include_dirs=[numpy.get_include()]),
-                   Extension("pylearn2.utils._video",
-                             ["pylearn2/utils/_video.pyx"],
-                             include_dirs=[numpy.get_include()])]
-else:
-    cmdclass = {}
-    ext_modules = []
+    from distutils.core import setup
 
 
-# Inform user of setup.py develop preference
-class pylearn2_install(install):
-    def run(self):
-        print("Because Pylearn2 is under heavy development, we generally do "
-              "not advice using the `setup.py install` command. Please "
-              "consider using the `setup.py develop` command instead for the "
-              "following reasons:\n\n1. Using `setup.py install` creates a "
-              "copy of the Pylearn2 source code in your Python installation "
-              "path. In order to update Pylearn2 afterwards you will need to "
-              "rerun `setup.py install` (!). Simply using `git pull` to "
-              "update your local copy of Pylearn2 code will not suffice. \n\n"
-              "2. When using `sudo` to install Pylearn2, all files, "
-              "including the tutorials, will be copied to a directory owned "
-              "by root. Not only is running tutorials as root unsafe, it "
-              "also means that all Pylearn2-related environment variables "
-              "which were defined for the user will be unavailable.\n\n"
-              "Pressing enter will continue the installation of Pylearn2 in "
-              "`develop` mode instead. Note that this means that you need to "
-              "keep this folder with the Pylearn2 code in its current "
-              "location. If you know what you are doing, and are very sure "
-              "that you want to install Pylearn2 using the `install` "
-              "command instead, please type `install`.\n")
-        mode = None
-        while mode not in ['', 'install', 'develop', 'cancel']:
-            if mode is not None:
-                print("Please try again")
-            mode = input("Installation mode: [develop]/install/cancel: ")
-        if mode in ['', 'develop']:
-            self.distribution.run_command('develop')
-        if mode == 'install':
-            return install.run(self)
-cmdclass.update({'install': pylearn2_install})
+CLASSIFIERS = """\
+Development Status :: 4 - Beta
+Intended Audience :: Education
+Intended Audience :: Science/Research
+Intended Audience :: Developers
+License :: OSI Approved :: BSD License
+Programming Language :: Python
+Topic :: Software Development :: Code Generators
+Topic :: Software Development :: Compilers
+Topic :: Scientific/Engineering :: Mathematics
+Operating System :: Microsoft :: Windows
+Operating System :: POSIX
+Operating System :: Unix
+Operating System :: MacOS
+Programming Language :: Python :: 2
+Programming Language :: Python :: 2.6
+Programming Language :: Python :: 2.7
+Programming Language :: Python :: 3
+Programming Language :: Python :: 3.3
+Programming Language :: Python :: 3.4
+"""
+NAME                = 'Theano'
+MAINTAINER          = "LISA laboratory, University of Montreal"
+MAINTAINER_EMAIL    = "theano-dev@googlegroups.com"
+DESCRIPTION         = ('Optimizing compiler for evaluating mathematical ' +
+                       'expressions on CPUs and GPUs.')
+LONG_DESCRIPTION    = (codecs.open("DESCRIPTION.txt", encoding='utf-8').read() +
+                       "\n\n" + codecs.open("NEWS.txt", encoding='utf-8').read())
+URL                 = "http://deeplearning.net/software/theano/"
+DOWNLOAD_URL        = ""
+LICENSE             = 'BSD'
+CLASSIFIERS         = [_f for _f in CLASSIFIERS.split('\n') if _f]
+AUTHOR              = "LISA laboratory, University of Montreal"
+AUTHOR_EMAIL        = "theano-dev@googlegroups.com"
+PLATFORMS           = ["Windows", "Linux", "Solaris", "Mac OS-X", "Unix"]
+MAJOR               = 0
+MINOR               = 9
+MICRO               = 0
+SUFFIX              = "dev2"  # Should be blank except for rc's, betas, etc.
+ISRELEASED          = False
 
-setup(
-    cmdclass=cmdclass,
-    ext_modules=ext_modules,
-    name='pylearn2',
-    version='0.1dev',
-    packages=find_packages(),
-    description='A machine learning library built on top of Theano.',
-    license='BSD 3-clause license',
-    long_description=open('README.rst', 'rb').read().decode('utf8'),
-    dependency_links=['git+http://github.com/Theano/Theano.git#egg=Theano'],
-    install_requires=['numpy>=1.5', 'pyyaml', 'argparse', "Theano"],
-    scripts=['bin/pylearn2-plot-monitor', 'bin/pylearn2-print-monitor',
-             'bin/pylearn2-show-examples', 'bin/pylearn2-show-weights',
-             'bin/pylearn2-train'],
-    package_data={
-        '': ['*.cu', '*.cuh', '*.h'],
-    },
-)
+VERSION             = '%d.%d.%d%s' % (MAJOR, MINOR, MICRO, SUFFIX)
+
+
+def find_packages(where='.', exclude=()):
+    out = []
+    stack = [(convert_path(where), '')]
+    while stack:
+        where, prefix = stack.pop(0)
+        for name in os.listdir(where):
+            fn = os.path.join(where, name)
+            if ('.' not in name and os.path.isdir(fn) and
+                os.path.isfile(os.path.join(fn, '__init__.py'))
+            ):
+                out.append(prefix+name)
+                stack.append((fn, prefix+name+'.'))
+    for pat in list(exclude) + ['ez_setup', 'distribute_setup']:
+        out = [item for item in out if not fnmatchcase(item, pat)]
+    return out
+
+
+def git_version():
+    """
+    Return the sha1 of local git HEAD as a string.
+    """
+    # josharian: I doubt that the minimal environment stuff here is
+    # still needed; it is inherited. This was originally
+    # an hg_version function borrowed from NumPy's setup.py.
+    # I'm leaving it in for now because I don't have enough other
+    # environments to test in to be confident that it is safe to remove.
+    def _minimal_ext_cmd(cmd):
+        # construct minimal environment
+        env = {}
+        for k in ['SYSTEMROOT', 'PATH', 'PYTHONPATH']:
+            v = os.environ.get(k)
+            if v is not None:
+                env[k] = v
+        # LANGUAGE is used on win32
+        env['LANGUAGE'] = 'C'
+        env['LANG'] = 'C'
+        env['LC_ALL'] = 'C'
+        out = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            env=env
+        ).communicate()[0]
+        return out
+    try:
+        out = _minimal_ext_cmd(['git', 'rev-parse', 'HEAD'])
+        git_revision = out.strip().decode('ascii')
+    except OSError:
+        git_revision = "unknown-git"
+    return git_revision
+
+
+def write_text(filename, text):
+    try:
+        with open(filename, 'w') as a:
+            a.write(text)
+    except Exception as e:
+        print(e)
+
+
+def write_version_py(filename=os.path.join('theano', 'generated_version.py')):
+    cnt = """
+# THIS FILE IS GENERATED FROM THEANO SETUP.PY
+short_version = '%(version)s'
+version = '%(version)s'
+git_revision = '%(git_revision)s'
+full_version = '%(version)s.dev-%%(git_revision)s' %% {
+    'git_revision': git_revision}
+release = %(isrelease)s
+if not release:
+    version = full_version
+"""
+    FULL_VERSION = VERSION
+    if os.path.isdir('.git'):
+        GIT_REVISION = git_version()
+    elif os.path.exists(filename):
+        # must be a source distribution, use existing version file
+        GIT_REVISION = "RELEASE"
+    else:
+        GIT_REVISION = "unknown-git"
+
+    FULL_VERSION += '.dev-' + GIT_REVISION
+    text = cnt % {'version': VERSION,
+                  'full_version': FULL_VERSION,
+                  'git_revision': GIT_REVISION,
+                  'isrelease': str(ISRELEASED)}
+    write_text(filename, text)
+
+
+def do_setup():
+    write_version_py()
+    setup(name=NAME,
+          version=VERSION,
+          description=DESCRIPTION,
+          long_description=LONG_DESCRIPTION,
+          classifiers=CLASSIFIERS,
+          author=AUTHOR,
+          author_email=AUTHOR_EMAIL,
+          url=URL,
+          license=LICENSE,
+          platforms=PLATFORMS,
+          packages=find_packages(),
+          # 1.7.0 give too much warning related to numpy.diagonal.
+          install_requires=['numpy>=1.7.1', 'scipy>=0.11', 'six>=1.9.0'],
+          # pygments is a dependency for Sphinx code highlight
+          extras_require={
+              'test': ['nose>=1.3.0', 'nose-parameterized>=0.5.0'],
+              'doc': ['Sphinx>=0.5.1', 'pygments']
+          },
+          package_data={
+              '': ['*.txt', '*.rst', '*.cu', '*.cuh', '*.c', '*.sh', '*.pkl',
+                   '*.h', '*.cpp', 'ChangeLog'],
+              'theano.misc': ['*.sh'],
+              'theano.d3viz' : ['html/*','css/*','js/*']
+          },
+          scripts=['bin/theano-cache', 'bin/theano-nose', 'bin/theano-test'],
+          keywords=' '.join([
+              'theano', 'math', 'numerical', 'symbolic', 'blas',
+              'numpy', 'gpu', 'autodiff', 'differentiation'
+          ]),
+    )
+if __name__ == "__main__":
+	do_setup()
+

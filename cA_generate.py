@@ -233,21 +233,21 @@ class cA(object):
 ############################################################
         #Jazze Young Generative Model#
         
-    def get_generative_samples(self, epsilon):
-        sample = T.matrix('self.x')
+    def get_generative_samples(self,xSamp, epsilon):
+        sample = T.matrix('xSamp')
         #samples = []
         #samples = Image.fromarray(tile_raster_images(
         #X=ca.W.get_value(borrow=True).T,
         #img_shape=(28, 28), tile_shape=(10, 10),
         #tile_spacing=(1, 1)))
         h = self.get_hidden_values(sample)
-        shift = cA.get_jacobian(h, self.W)
+        shift = self.get_jacobian(h, self.W)
         shift = T.dot(shift, shift.T)
         shift = T.mul(shift, epsilon)
-        sample = cA.get_reconstructed_input(cA.get_hidden_values(sample+shift))
+        sample = self.get_reconstructed_input(self.get_hidden_values(sample+shift))
         #samples.append(sample)
-        print sample
-        print ''
+        #print sample
+        #print ''
         return sample
 ############################################################
 
@@ -273,7 +273,7 @@ def test_cA(learning_rate=0.01, training_epochs=20,
 
     # compute number of minibatches for training, validation and testing
     n_train_batches = train_set_x.get_value(borrow=True).shape[0] / batch_size
-
+    print train_set_x.get_value(borrow=True).shape[0]
     # allocate symbolic variables for the data
     index = T.lscalar()    # index to a [mini]batch
     x = T.matrix('x')  # the data is presented as rasterized images
@@ -309,7 +309,7 @@ def test_cA(learning_rate=0.01, training_epochs=20,
     ############
 
     # go through training epochs
-    for epoch in xrange(training_epochs):
+    for epoch in xrange(1): #xrange(training_epochs):
         # go through trainng set
         c = []
         for batch_index in xrange(n_train_batches):
@@ -332,18 +332,20 @@ def test_cA(learning_rate=0.01, training_epochs=20,
 ###################################
     
     samples = []
-    generation_time = time.clock()
-    
-    for i in range(train_set_x.shape(2)):
+    gene_start = time.clock()
+    num = train_set_x.get_value(borrow=True).shape[0]
+    for i in range(num):
         x = train_set_x[i][:]
-        sample = cA.get_generative_samples(0.001)
+        sample = ca.get_generative_samples(x, 0.001)
+	newSamp = Image.fromarray(tile_raster_images(X=sample.get_value(borrow=True), img_shape=(28,28), tile_shape=(1,1)))
+	newSamp.save(str(i) + '.png')
         samples.append(sample)
-    e_gene_time = time.clock()
-    print 'Generating samples time cost ', e_gene_time - generation_time
-    newImage = Image.fromarray(tile_raster_images(X=sample, img_shape=(28,28),
-                            tile_shape=(10,10),
-                            tile_spacing=(1, 1)))
-    newImage.save('CAE_generated.png')
+    gene_end = time.clock()
+    print 'Generating samples time cost ', gene_end - gene_start
+    #for i in range(num):
+    #    x = samples[i]
+    #    newSamp = Image.fromarray(tile_raster_images(X=x.get_value(borrow=True), img_shape=(28,28),tile_shape=(1,1)))
+    #    newSamp.save(str(i) + '.png')
     image.save('cae_filters.png')
 
     os.chdir('../')
