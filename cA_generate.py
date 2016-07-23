@@ -187,8 +187,7 @@ class cA(object):
         element-wise product on the right axis
 
         """
-        return T.reshape(hidden * (1 - hidden),
-                         (self.n_batchsize, 1, self.n_hidden)) * T.reshape(
+        return T.reshape(hidden * (1 - hidden), (self.n_batchsize, 1, self.n_hidden)) * T.reshape(
                              W, (1, self.n_visible, self.n_hidden))
 
     def get_reconstructed_input(self, hidden):
@@ -233,21 +232,24 @@ class cA(object):
 ############################################################
         #Jazze Young Generative Model#
         
-    def get_generative_samples(self,xSamp, epsilon):
-        sample = T.matrix('xSamp')
-        #samples = []
-        #samples = Image.fromarray(tile_raster_images(
-        #X=ca.W.get_value(borrow=True).T,
-        #img_shape=(28, 28), tile_shape=(10, 10),
-        #tile_spacing=(1, 1)))
-        h = self.get_hidden_values(sample)
-        shift = self.get_jacobian(h, self.W)
-        shift = T.dot(shift, shift.T)
+    def get_generative_samples(self, xSamp, epsilon):
+	x = T.dvector('xSamp')
+	print x.type
+        h = self.get_hidden_values(x)
+	print h.type
+	self.n_batchsize = 1
+	Jocab = h * (1 - h)*self.W
+	print Jocab.type
+	shift = T.dot(Jocab,Jocab.T)
         shift = T.mul(shift, epsilon)
-        sample = self.get_reconstructed_input(self.get_hidden_values(sample+shift))
-        #samples.append(sample)
-        #print sample
-        #print ''
+	print shift.type
+        newx = self.get_reconstructed_input(self.get_hidden_values(x+shift))
+	f = theano.function([xSamp],newx)
+	newx=f(xSamp)
+	print newx.type
+	sample = T.mul(newx, 255)
+	print sample.type
+	
         return sample
 ############################################################
 
@@ -309,7 +311,7 @@ def test_cA(learning_rate=0.01, training_epochs=20,
     ############
 
     # go through training epochs
-    for epoch in xrange(1): #xrange(training_epochs):
+    for epoch in xrange(0): #xrange(training_epochs):
         # go through trainng set
         c = []
         for batch_index in xrange(n_train_batches):
@@ -331,17 +333,21 @@ def test_cA(learning_rate=0.01, training_epochs=20,
         tile_spacing=(1, 1)))
 ###################################
     
-    samples = []
+    samples = theano.shared(value=numpy.array(train_set_x.get_value(borrow=True), dtype=theano.config.intX),borrow=True)
+    sample = theano.shared(value=numpy.zeros(784, dtype=numpy.uint8), borrow=True)
     gene_start = time.clock()
     num = train_set_x.get_value(borrow=True).shape[0]
-    for i in range(num):
-        x = train_set_x[i][:]
+    for i in range(10):
+        x = train_set_x.get_value(borrow=True)[1][:]
         sample = ca.get_generative_samples(x, 0.001)
-	newSamp = Image.fromarray(tile_raster_images(X=sample.get_value(borrow=True), img_shape=(28,28), tile_shape=(1,1)))
-	newSamp.save(str(i) + '.png')
-        samples.append(sample)
+        newX = sample[2]
+        print newX
+        #newSamp = Image.fromarray(numpy.array(newX.reshape(28,28), dtype=numpy.uint8))
+        #newSamp.save(str(i) + '.png')
+        samples.append(newX)
     gene_end = time.clock()
-    print 'Generating samples time cost ', gene_end - gene_start
+    print samples
+    print 'Generating samples time cost %ds' % (gene_end - gene_start)
     #for i in range(num):
     #    x = samples[i]
     #    newSamp = Image.fromarray(tile_raster_images(X=x.get_value(borrow=True), img_shape=(28,28),tile_shape=(1,1)))
@@ -349,7 +355,10 @@ def test_cA(learning_rate=0.01, training_epochs=20,
     image.save('cae_filters.png')
 
     os.chdir('../')
-
+class tensor2array(object):
+    def __init__(self,input):
+	self.input = input
+    	self.output = input
 
 if __name__ == '__main__':
     test_cA()
