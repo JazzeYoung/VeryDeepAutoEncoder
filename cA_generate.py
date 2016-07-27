@@ -44,7 +44,6 @@ import numpy
 import theano
 import theano.tensor as T
 
-
 from logistic_sgd import load_data
 from utils import tile_raster_images
 
@@ -52,7 +51,7 @@ try:
     import PIL.Image as Image
 except ImportError:
     import Image
-
+import cPickle
 
 class cA(object):
     """ Contractive Auto-Encoder class (cA)
@@ -233,24 +232,25 @@ class cA(object):
         #Jazze Young Generative Model#
         
     def get_generative_samples(self, xSamp, epsilon):
-	x = T.dvector('xSamp')
-	print x.type
+        eta = numpy.random.normal(loc=0.0, scale=epsilon, size=500)
+        #eta = T.nlinalg.alloc_diag(eta)
+        x = T.dvector('xSamp')
+        #print x.type
         h = self.get_hidden_values(x)
-	print h.type
-	self.n_batchsize = 1
-	Jocab = h * (1 - h)*self.W
-	print Jocab.type
-	shift = T.dot(Jocab,Jocab.T)
-        shift = T.mul(shift, epsilon)
-	print shift.type
-        newx = self.get_reconstructed_input(self.get_hidden_values(x+shift))
-	f = theano.function([xSamp],newx)
-	newx=f(xSamp)
-	print newx.type
-	sample = T.mul(newx, 255)
-	print sample.type
-	
-        return sample
+        #print h.type
+        self.n_batchsize = 1
+        Jocab = h * (1 - h)*self.W
+        #print Jocab.type
+        shift = T.dot(Jocab, T.dot(Jocab.T,eta))
+        #print shift.type
+        #print shift
+        newx = self.get_reconstructed_input(self.get_hidden_values(h+shift))
+        #f = theano.function([xSamp],newx)
+        #newx=f(xSamp)
+        #print newx.type
+        #print sample.type
+        newx = T.mul(newx, 255)
+        return newx
 ############################################################
 
 def test_cA(learning_rate=0.01, training_epochs=20,
@@ -275,7 +275,7 @@ def test_cA(learning_rate=0.01, training_epochs=20,
 
     # compute number of minibatches for training, validation and testing
     n_train_batches = train_set_x.get_value(borrow=True).shape[0] / batch_size
-    print train_set_x.get_value(borrow=True).shape[0]
+    #print train_set_x.get_value(borrow=True).shape[0]
     # allocate symbolic variables for the data
     index = T.lscalar()    # index to a [mini]batch
     x = T.matrix('x')  # the data is presented as rasterized images
@@ -311,7 +311,7 @@ def test_cA(learning_rate=0.01, training_epochs=20,
     ############
 
     # go through training epochs
-    for epoch in xrange(0): #xrange(training_epochs):
+    for epoch in xrange(training_epochs):
         # go through trainng set
         c = []
         for batch_index in xrange(n_train_batches):
@@ -333,18 +333,41 @@ def test_cA(learning_rate=0.01, training_epochs=20,
         tile_spacing=(1, 1)))
 ###################################
     
-    samples = theano.shared(value=numpy.array(train_set_x.get_value(borrow=True), dtype=theano.config.intX),borrow=True)
-    sample = theano.shared(value=numpy.zeros(784, dtype=numpy.uint8), borrow=True)
+    save_file = open('results.txt', 'wb')  # this will overwrite current contents
+    cPickle.dump(ca.W.get_value(borrow=True), save_file, -1)  # the -1 is for HIGHEST_PROTOCOL
+    cPickle.dump(ca.b_prime.get_value(borrow=True), save_file, -1)  # .. and it triggers much more efficient
+    cPickle.dump(ca.b.get_value(borrow=True), save_file, -1)  # .. storage than numpy's default
+    save_file.close()
+    #samples = theano.shared(value=numpy.array(train_set_x.get_value(borrow=True), dtype=theano.config.floatX),borrow=True)
+    
     gene_start = time.clock()
-    num = train_set_x.get_value(borrow=True).shape[0]
-    for i in range(10):
-        x = train_set_x.get_value(borrow=True)[1][:]
-        sample = ca.get_generative_samples(x, 0.001)
-        newX = sample[2]
-        print newX
-        #newSamp = Image.fromarray(numpy.array(newX.reshape(28,28), dtype=numpy.uint8))
+    samples=[]
+    num = train_set_x.get_value(borrow=True).shape[0]/50
+    for i in range(1):#range(num):
+        sample = theano.shared(value=numpy.zeros(784, dtype=numpy.uint8), borrow=True)
+    
+        x = train_set_x.get_value(borrow=True)[i * 50]
+        #print x.shape
+        x_0 = ca.get_generative_samples(x, 0.0001)
+        
+        #f=theano.function([x_0], samples, updates=[[sample, sample + x_0]]) #定义新的变量更新为得到新的变量设置为sample
+        #sample=x_0
+        T.set_subtensor(sample[:], x_0)
+        print sample.get_value()
+        #sample.set_value(ca.get_generative_samples(x,0.001))
+        #print sample.get_value()
+        #x*=255
+        #print x
+        #ximage = Image.fromarray(numpy.array(x.reshape(28,28), dtype=numpy.uint8))
+        #ximage.save(str(i+1)+'.png')
+        newX = Image.fromarray(numpy.array(sample.get_value(borrow=True).reshape(28,28),
+                                           dtype=numpy.uint8))
+                                           
+        newX.save(str(i+1)+'.bmp')                                  
+        #print newX
+        #print sample
         #newSamp.save(str(i) + '.png')
-        samples.append(newX)
+        samples.append(sample)
     gene_end = time.clock()
     print samples
     print 'Generating samples time cost %ds' % (gene_end - gene_start)
@@ -353,12 +376,9 @@ def test_cA(learning_rate=0.01, training_epochs=20,
     #    newSamp = Image.fromarray(tile_raster_images(X=x.get_value(borrow=True), img_shape=(28,28),tile_shape=(1,1)))
     #    newSamp.save(str(i) + '.png')
     image.save('cae_filters.png')
-
+    #image2 = Image.fromarray(ca.b.get_value(borrow=True).reshape(25,20))
+    #image2.save('cae_b.png')
     os.chdir('../')
-class tensor2array(object):
-    def __init__(self,input):
-	self.input = input
-    	self.output = input
 
 if __name__ == '__main__':
     test_cA()

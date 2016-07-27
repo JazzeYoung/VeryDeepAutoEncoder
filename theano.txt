@@ -1,0 +1,32 @@
+ Python/Theano 加载和保存模型
+2016-04-20 09:00 109人阅读 评论(0) 收藏 举报
+分类：
+[python]（5）
+
+目录(?)[+]
+加载和保存模型
+
+当实验时，使用梯度下降可能会花费几个小时（有时几天）寻找好的参数。一旦你找到它们，可以保存那些权值。在搜索过程中，你也可能想要保存当前最好的估计。
+pickle保存共享变量中的numpy的n维数组
+
+保存或者归档模型的参数的最好的方法是使用pickle或者deepcopy保存n维数组。比如，如果你的参数在共享变量w、v、u中，则保存的命令应该看起来像这样：
+
+>>> import cPickle
+>>> save_file = open('path', 'wb')  # this will overwrite current contents
+>>> cPickle.dump(w.get_value(borrow=True), save_file, -1)  # the -1 is for HIGHEST_PROTOCOL
+>>> cPickle.dump(v.get_value(borrow=True), save_file, -1)  # .. and it triggers much more efficient
+>>> cPickle.dump(u.get_value(borrow=True), save_file, -1)  # .. storage than numpy's default
+>>> save_file.close()
+
+然后，可以像这样子加载数据：
+
+>>> save_file = open('path')
+>>> w.set_value(cPickle.load(save_file), borrow=True)
+>>> v.set_value(cPickle.load(save_file), borrow=True)
+>>> u.set_value(cPickle.load(save_file), borrow=True)
+
+这个技术有点繁琐，但是可靠并且正确的。你能加载之前保存的数据，并不用折腾就可以在matplotlib中显示。
+
+
+参考文献：http://www.360doc.com/content/16/0420/08/32605990_552199788.shtml
+
